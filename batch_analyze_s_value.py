@@ -1,8 +1,8 @@
 import os
 
 
-dataset = ['csail']#['csail', 'manhattan', 'intel'] #, 'mit']
-inliers_quantity = [127]#[127, 1952, 256] #, 20]
+dataset = ['manhattan']#['csail', 'manhattan', 'intel'] #, 'mit']
+inliers_quantity = [1952]#[127, 1952, 256] #, 20]
 inliers_percentages = [0.5, 0.6, 0.7, 0.8, 0.9]
 sample_size = 10
 method = 'dcs'
@@ -38,3 +38,5 @@ for i in range(0,len(dataset)):
         os.system('cat' + file_list_string + ' > s_value_analysis_' + configuration_name)
         os.system('cp s_value_analysis_' + configuration_name + ' ../')
         os.chdir('../')
+        os.system('grep \'Num of rejected inliers\' s_value_analysis_' + configuration_name + ' > ' + method + '_inlier_' + configuration_name)
+        os.system('grep \'Num of acceptted outliers\' s_value_analysis_' + configuration_name + ' > ' + method + '_outlier_' + configuration_name)
