@@ -5,11 +5,15 @@
 # Chemnitz University of Technology
 # niko@etit.tu-chemnitz.de
 
+## No. Not any more. I've changed too much 
+## fang.wu@polymtl.ca
+
 
 from optparse import OptionParser
 import sys
 import random
 from math import *
+import numpy as np
 
 
 # =================================================================
@@ -115,7 +119,7 @@ def euler_to_quat(yaw,  pitch,  roll):
 
 
 # ==================================================================
-def writeDataset(filename, vertices, edges, mode, outliers=0, switchPrior=1, switchSigma=1, maxmixWeight=10e-12, maxmixScale=0.01, groupSize=1, doLocal=0, informationMatrix="42,0,0,42,0,42", doSwitchable=True, doMaxMix=False, doMaxMixAgarwal=False, perfectMatch=False):
+def writeDataset(filename, vertices, edges, mode, outliers, switchPrior, switchSigma, maxmixWeight, maxmixScale, groupSize, doLocal, informationMatrix, doSwitchable, doDescending, doLinkdown, doMaxMix, doMaxMixAgarwal, perfectMatch):
 
     
     switchInfo=1.0/switchSigma**2
@@ -181,25 +185,33 @@ def writeDataset(filename, vertices, edges, mode, outliers=0, switchPrior=1, swi
     switchCount=0
 
     # for every edge, create a new switch node and its associated prior and write the new switchable edges
+    lc_edges = [] # store all the nonsequential edges
+    lc_edges_information = []
     for oldStr in edges:
 
       (a,b) = oldStr.split()[1:3]
-      if int(a) != int(b)-1: 
+      if int(float(a)) != int(float(b))-1: 
         isOdometryEdge = False
+        lc_edges.append([int(float(a)), int(float(b))])
       else:
         isOdometryEdge = True
 
-      # auto determine information matrix for additional outliers from the first loop closure edge we find in the dataset
+      # compute the average information matrix of all loop closure edges in the original dataset, save it as information matrix for additional outliers
+      # @fwu
       if not isOdometryEdge and informationMatrix==None:
           elem = oldStr.split()
           if mode==2:
-              informationMatrix = ' '.join(elem[-6:])
+              informationMatrix_str = ' '.join(elem[-6:])
+              str_splited = informationMatrix_str.split(' ')
+              lc_edges_information.append([float(value) for value in str_splited])                  
+              
           else:
-              informationMatrix = ' '.join(elem[-21:])
-          print informationMatrix
+              informationMatrix_str = ' '.join(elem[-21:])
+              str_splited = informationMatrix_str.split(' ')
+              lc_edges_information.append([float(value) for value in str_splited])
 
           
-      # carry on adding edges
+      # carry on adding switchable or MaxMix edges
       if doSwitchable and not isOdometryEdge:
         s=' '.join(['VERTEX_SWITCH', str(poseCount + switchCount), str(switchPrior)])
         f.write(s+'\n')
@@ -246,20 +258,23 @@ def writeDataset(filename, vertices, edges, mode, outliers=0, switchPrior=1, swi
       
         f.write(oldStr)
 
+    lc_edges_information_array = np.array(lc_edges_information)
+    information = np.mean(lc_edges_information_array, axis=0)
+    information_str = ["%.2f" % x for x in information]
+    informationMatrix =' '.join(information_str)
+    print(informationMatrix)
 
 
     # now create the desired number of additional outlier edges
     for i in range(outliers):        
 
-        elem = oldStr.split()
-
         # determine random indices for the two vertices that are connected by an outlier edge
-        v1=0
-        v2=0
-        while v1==v2:
-            v1=random.randint(0,poseCount-1-groupSize)
+        v1=1    # don't use pose 0 @fwu
+        v2=1    # don't use pose 0
+        while v1==v2 or [v1, v2] in lc_edges: # 2nd condition makes sure that generated edge aren't already in the dataset @fwu
+            v1=random.randint(1,poseCount-1-groupSize)# don't use pose 0
             if doLocal<1:
-              v2=random.randint(0,poseCount-1-groupSize)
+              v2=random.randint(1,poseCount-1-groupSize)
             else: 
               v2=random.randint(v1,min(poseCount-1-groupSize, v1+20)) 
 
@@ -269,6 +284,12 @@ def writeDataset(filename, vertices, edges, mode, outliers=0, switchPrior=1, swi
               v2=tmp                       
             if v2==v1+1:
               v2=v1+2
+
+            if doLinkdown:
+              tmp=v1
+              v1=v2
+              v2=tmp 
+
         
         # determine coordinates of the loop closure constraint
         if mode == 2:
@@ -277,79 +298,91 @@ def writeDataset(filename, vertices, edges, mode, outliers=0, switchPrior=1, swi
             x3=random.gauss(0,10*pi/180.0)
 
         if mode == 3:
-            x1=random.gauss(0,0.3)
-            x2=random.gauss(0,0.3)
-            x3=random.gauss(0,0.3)
+            x1=random.gauss(0,3)
+            x2=random.gauss(0,3)
+            x3=random.gauss(0,3)
             
             
             sigma = 10.0*pi/180.0
             roll = random.gauss(0,sigma)
             pitch = random.gauss(0,sigma)
             yaw = random.gauss(0,sigma)            
-            (q0, q1, q2, q3) = euler_to_quat(yaw, pitch, roll)
+            (q3, q0, q1, q2) = euler_to_quat(yaw, pitch, roll)
 
         if perfectMatch:
           x1=x2=x3=0
-          q0=1
-          q1=q2=q3=0
+          q3=1
+          q0=q1=q2=0
 
         
-        for j in range(groupSize):
+        j = 0
+        while j < groupSize:
+
+            if [v1, v2] not in lc_edges:
+
+                j += 1
 
 
-            info_str = informationMatrix.replace(",", " ")
+                info_str = informationMatrix.replace(",", " ")
 
-        
-            # build the string for the new edge and write it        
-            if doSwitchable:
+            
+                # build the string for the new edge and write it        
+                if doSwitchable:
 
-                s=' '.join(['VERTEX_SWITCH', str(poseCount + switchCount), str(switchPrior)])
-                f.write(s+'\n')
+                    s=' '.join(['VERTEX_SWITCH', str(poseCount + switchCount), str(switchPrior)])
+                    f.write(s+'\n')
 
-                s=' '.join(['EDGE_SWITCH_PRIOR',str(poseCount + switchCount), str(switchPrior), str(switchInfo)])
-                f.write(s+'\n')
+                    s=' '.join(['EDGE_SWITCH_PRIOR',str(poseCount + switchCount), str(switchPrior), str(switchInfo)])
+                    f.write(s+'\n')
 
-                n=[v1, v2, poseCount + switchCount, x1, x2, x3]
-                if mode == 3:
-                    n.extend([q0, q1, q2, q3])
-                    
-                s = ' '.join([edgeStr+'_SWITCHABLE'] + [str(x) for x in n]) + " " + info_str
-                f.write(s+'\n')
-                switchCount = switchCount + 1
-            elif doMaxMix: 
-                n=[v1, v2, maxmixScale, x1, x2, x3]
-                if mode == 3:
-                    n.extend([q0, q1, q2, q3])
-                    
-                s = ' '.join([edgeStr+'_MAXMIX'] + [str(x) for x in n]) + " " + info_str
-                f.write(s+'\n')
-            elif doMaxMixAgarwal:
-                n= v1, v2, x1, x2, x3
+                    n=[v1, v2, poseCount + switchCount, x1, x2, x3]
+                    if mode == 3:
+                        n.extend([q0, q1, q2, q3])
+                        
+                    s = ' '.join([edgeStr+'_SWITCHABLE'] + [str(x) for x in n]) + " " + info_str
+                    f.write(s+'\n')
+                    switchCount = switchCount + 1
+                elif doMaxMix: 
+                    n=[v1, v2, maxmixScale, x1, x2, x3]
+                    if mode == 3:
+                        n.extend([q0, q1, q2, q3])
+                        
+                    s = ' '.join([edgeStr+'_MAXMIX'] + [str(x) for x in n]) + " " + info_str
+                    f.write(s+'\n')
+                elif doMaxMixAgarwal:
+                    n= v1, v2, x1, x2, x3
 
-                # edge component 1
-                edge1 = ' '.join([edgeStr, "1"] + [str(x) for x in n]) + " " + info_str
-               
-                # edge component 2
-                w = float(maxmixScale)
-                weighted_info_str = [str(float(x)*w) for x in info_str.split()]        
-                edge2 = ' '.join([edgeStr, str(maxmixWeight)] + [str(x) for x in n] + weighted_info_str)
+                    # edge component 1
+                    edge1 = ' '.join([edgeStr, "1"] + [str(x) for x in n]) + " " + info_str
+                   
+                    # edge component 2
+                    w = float(maxmixScale)
+                    weighted_info_str = [str(float(x)*w) for x in info_str.split()]        
+                    edge2 = ' '.join([edgeStr, str(maxmixWeight)] + [str(x) for x in n] + weighted_info_str)
 
-                # put it together
-                s =  ' '.join([edgeStr+'_MIXTURE', str(v1), str(v2), "2"]) + " " +  edge1 + " " + edge2
-                f.write(s+'\n')
+                    # put it together
+                    s =  ' '.join([edgeStr+'_MIXTURE', str(v1), str(v2), "2"]) + " " +  edge1 + " " + edge2
+                    f.write(s+'\n')
 
-            else:
-                n=[v1, v2, x1, x2, x3]
-                if mode == 3:
-                    n.extend([q0, q1, q2, q3])                    
-                    s = ' '.join([edgeStr+":QUAT"] + [str(x) for x in n]) + " " + info_str
                 else:
-                    s = ' '.join([edgeStr] + [str(x) for x in n]) + " " + info_str
-                f.write(s+'\n')
+                    n=[v1, v2, x1, x2, x3]
+                    if mode == 3:
+                        n.extend([q0, q1, q2, q3])                    
+                        s = ' '.join([edgeStr+":QUAT"] + [str(x) for x in n]) + " " + info_str
+                    else:
+                        s = ' '.join([edgeStr] + [str(x) for x in n]) + " " + info_str
+                    f.write(s+'\n')
 
-        
+            
+                lc_edges.append([v1, v2]) # append newly generated edge to the dataset, to make sure following iterations doesn't generate redundant edges 
+
             v1=v1+1
-            v2=v2+1    
+
+            if doDescending:
+                v2=v2-1 # descending                
+            else:
+                 v2=v2+1 # ascending  
+
 
     return True
 
@@ -373,7 +406,6 @@ if __name__ == "__main__":
     parser.add_option("--seed", help = "Random seed. If >0 it will be used to initialize the random number generator to create repeatable random false positive loop closures.", default=None, type="int")
     parser.add_option("--maxmixWeight", help = "Weight factor for the null hypothesis used in the max-mixture model. Default = 0.01", default=0.01, type="float")
     parser.add_option("--maxmixScale", help = "Scale factor for the null hypothesis used in the max-mixture model. Default = 10e-12", default=10e-12, type="float")
-
     
     # boolean options
     parser.add_option("-s", "--switchable", help = "Use the switchable loop closure constraints.", action="store_true", default=False)
@@ -382,6 +414,10 @@ if __name__ == "__main__":
     parser.add_option("-l", "--local", help = "Create only local false positive loop closure constraints.", action="store_true", default=False)
     parser.add_option("-p", "--perfectMatch", help = "Loop closures match perfectly, i.e. the transformation between both poses is (0,0,0).", action="store_true", default=False)
 
+    # options added by @fwu
+    parser.add_option("--descending", help = "For grouped link: vertex_to in descending order.", action="store_true", default=False)
+    parser.add_option("--linkdown", help = "For all link: vertex_from > vertex_to.", action="store_true", default=False)
+    
     
     # parse the command line options
     (options, args) = parser.parse_args()
@@ -409,7 +445,9 @@ if __name__ == "__main__":
                      options.local,
                      options.information,
                      options.switchable,
-                     options.maxmix,
+                     options.descending,
+                     options.linkdown,
+                     options.maxmix,                     
                      options.maxmixAgarwal,
                      options.perfectMatch):
             print "Done."

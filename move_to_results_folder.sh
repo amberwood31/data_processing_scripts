@@ -8,7 +8,7 @@ cp clustering_results.txt clustering_output.txt sorted.g2o $1
 
 
 cp plot_switch_variable.py plot2_switch_variable.py plot_g2o_with_link.py plot.py plot_error.py plot_clustering.py plot_ate_convergence.py plot_s_value.py $1
-cp analyze_switch_variable.sh analyze.sh analyze_clustering.sh examine_clustering_results.py analyze_ate_convergence.sh analyze_s_value.sh $1
+cp analyze_switch_variable.sh analyze_cbsc_switch_variable.sh analyze.sh analyze_clustering.sh examine_clustering_results.py analyze_ate_convergence.sh analyze_s_value.sh $1
 
 #cp full_analysis.txt $1
 
