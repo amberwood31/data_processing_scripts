@@ -223,10 +223,10 @@ def write_group_edges(f, outliers, groupSize, lc_edges, poseCount, switchCount, 
 
     loop_counter = 0
     while loop_counter < outliers:
-        random_group_size = random.randint(1, groupSize)
-        #print("random group size:", random_group_size)
+        random_group_range = random.randint(1, groupSize)
+        #print("random group range:", random_group_range)
 
-        if random_group_size == 1:
+        if random_group_range == 1:
 
             v1, v2 = generate_one_edge(poseCount, lc_edges, doLocal, doLinkdown)
 
@@ -236,21 +236,26 @@ def write_group_edges(f, outliers, groupSize, lc_edges, poseCount, switchCount, 
                 switchCount = switchCount + 1
         
             lc_edges.append([v1, v2]) # append newly generated edge to the dataset, to make sure following iterations doesn't generate redundant edges 
+
+            loop_counter += 1
         
         else: 
+            # this is the number of loop closures from this specific perceptual aliasing incident
+            random_group_size = random.randint(2, random_group_range)
+
             
             # this two are the means of two uniform distribution of grouped outliers
             v1, v2 = generate_one_edge(poseCount, lc_edges, doLocal, doLinkdown)
+
 
             counter = 0
             while counter < random_group_size:      
                 
                 v3 = 1
                 v4 = 1
-                while v3 == v4 or ((v3 == v1) and (v4 == v2)) or [v3, v4] in lc_edges:
-                    v3 = random.randint(v1 - groupSize/2, v1 + groupSize/2)
-                    v4 = random.randint(v2 - groupSize/2, v2 + groupSize/2)
-
+                while v3 == v4 or [v3, v4] in lc_edges:
+                    v3 = random.randint(v1 - random_group_range/2, v1 + random_group_range/2)
+                    v4 = v3 - v1 + v2 + random.randint(-1,1) # add a noise with std = 1
 
                     if v3>v4:
                         tmp=v3
@@ -259,7 +264,9 @@ def write_group_edges(f, outliers, groupSize, lc_edges, poseCount, switchCount, 
                     if v4==v3+1:
                         v4=v3+2
 
-                    if v3 < 0: #in case negative int value is generated for v3, move both v3 and v4 
+                    
+                    if v3 <= 0: 
+                        #if negative int value (or 0, rtabmap doesn't accept pose 0) is generated for v3, move both v3 and v4 
                         v4 = v4-v3+1
                         v3 = 1
 
@@ -277,7 +284,7 @@ def write_group_edges(f, outliers, groupSize, lc_edges, poseCount, switchCount, 
                 lc_edges.append([v3, v4]) # append newly generated edge to the dataset, to make sure following iterations doesn't generate redundant edges 
                 counter += 1
 
-        loop_counter += random_group_size          
+            loop_counter += random_group_size          
 
 
 def write_random_edges(f, outliers, lc_edges, poseCount, switchCount, switchPrior, switchInfo, edgeStr, maxmixScale, maxmixWeight, doLocal, doLinkdown, doSwitchable, doMaxMix, doMaxMixAgarwal, perfectMatch, mode, informationMatrix):

@@ -189,7 +189,7 @@ def process(dataset_name, sample_size, pose_groundtruth, method_folder):
 # In[]: test inputs
 
 dataset_name = 'manhattan'
-pose_quantity = 3499 # manhattan: 3449 CSAIL: 1044 garage: 1660
+pose_quantity = 3499 # manhattan: 3499 CSAIL: 1044 garage: 1660
 sample_size = 10
 configuration_list = ['random217', 'random488', 'random837', 'random1301', 'random1952']
 method_list = ['vertigo', 'dcs', 'cbsc', 'slampp']

@@ -4,9 +4,9 @@ import os
 
 
 dataset = ['csail', 'manhattan', 'intel']
-inliers_quantity = [128, 1952, 256]
+inliers_quantity = [127, 1952, 256]
 inliers_percentages = [0.5]
-outliers_quantity = [128, 1952, 256]
+outliers_quantity = [127, 1952, 256]
 group_size = 8
 outliers_group_quantity = outliers_quantity #[int(x/group_size) for x in outliers_quantity]
 print(outliers_group_quantity)
