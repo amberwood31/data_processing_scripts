@@ -269,6 +269,10 @@ def write_group_edges(f, outliers, groupSize, lc_edges, poseCount, switchCount, 
                         #if negative int value (or 0, rtabmap doesn't accept pose 0) is generated for v3, move both v3 and v4 
                         v4 = v4-v3+1
                         v3 = 1
+                    
+                    if v4 > poseCount:
+                        v3 = v3+poseCount-v4
+                        v4 = poseCount
 
                     if doLinkdown:
                         tmp=v3
