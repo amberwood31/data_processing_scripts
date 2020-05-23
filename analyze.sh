@@ -1,6 +1,14 @@
-grep 'iteration ' output.txt > iteration_error.txt
-python plot_g2o_with_link.py poses_transition_10.g2o
-python plot_g2o_with_link.py output.g2o 
-#python plot_switch_variable.py input.g2o output.g2o output.txt >&1 precision_recall
-python plot_error.py 
+FOLDER_PATH=$1
+FILENAME=$2
+INLIER_QUANTITY=$3
+OUTLIER_QUANTITY=$4
+END=$5
 
+for ((SEED=1;SEED<=END;SEED++))
+do
+
+    python simple_plot.py "$FILENAME".g2o_seed_"$SEED"_dcs.g2o
+    
+    python plot_s_value.py $FOLDER_PATH $FILENAME $INLIER_QUANTITY $OUTLIER_QUANTITY $SEED
+
+done

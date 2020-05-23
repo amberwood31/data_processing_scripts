@@ -103,201 +103,23 @@ def readDataset(filename, vertexStr='VERTEX_SE2', edgeStr='EDGE_SE2'):
 
 # ==================================================================
 def euler_to_quat(yaw,  pitch,  roll):
-   sy = sin(yaw*0.5)
-   cy = cos(yaw*0.5)
-   sp = sin(pitch*0.5)
-   cp = cos(pitch*0.5)
-   sr = sin(roll*0.5)
-   cr = cos(roll*0.5)
-   w = cr*cp*cy + sr*sp*sy
-   x = sr*cp*cy - cr*sp*sy
-   y = cr*sp*cy + sr*cp*sy
-   z = cr*cp*sy - sr*sp*cy
+   sy = sin(yaw*0.5);
+   cy = cos(yaw*0.5);
+   sp = sin(pitch*0.5);
+   cp = cos(pitch*0.5);
+   sr = sin(roll*0.5);
+   cr = cos(roll*0.5);
+   w = cr*cp*cy + sr*sp*sy;
+   x = sr*cp*cy - cr*sp*sy;
+   y = cr*sp*cy + sr*cp*sy;
+   z = cr*cp*sy - sr*sp*cy;
 
    return (w,x,y,z)
-
-def generate_one_edge(poseCount, lc_edges, doLocal, doLinkdown):
-
-    # determine random indices for the two vertices that are connected by an outlier edge
-    v1=1    # don't use pose 0 @fwu
-    v2=1    # don't use pose 0
-    while v1==v2 or [v1, v2] in lc_edges: # 2nd condition makes sure that generated edge aren't already in the dataset @fwu
-        v1=random.randint(1,poseCount-1-1)# don't use pose 0
-        # the second -1 can be removed, but is kept to be consistent with previous version of the script
-        if doLocal<1:
-            v2=random.randint(1,poseCount-1-1)
-        else: 
-            v2=random.randint(v1,min(poseCount-1-1, v1+20)) 
-
-        if v1>v2:
-            tmp=v1
-            v1=v2
-            v2=tmp                       
-        if v2==v1+1:
-            v2=v1+2
-
-        if doLinkdown:
-            tmp=v1
-            v1=v2
-            v2=tmp 
-
-    return v1, v2
-
-def compute_and_write_one_edge(v1, v2, f, mode, edgeStr, perfectMatch, poseCount, switchCount, switchPrior, switchInfo, maxmixScale, maxmixWeight, informationMatrix, doSwitchable, doMaxMix, doMaxMixAgarwal):
-
-
-    # determine coordinates of the loop closure constraint
-    if mode == 2:
-        x1=random.gauss(0,3)
-        x2=random.gauss(0,3)
-        x3=random.gauss(0,10*pi/180.0)
-
-    if mode == 3:
-        x1=random.gauss(0,3)
-        x2=random.gauss(0,3)
-        x3=random.gauss(0,3)
-        
-        
-        sigma = 10.0*pi/180.0
-        roll = random.gauss(0,sigma)
-        pitch = random.gauss(0,sigma)
-        yaw = random.gauss(0,sigma)            
-        (q3, q0, q1, q2) = euler_to_quat(yaw, pitch, roll)
-
-    if perfectMatch:
-        x1=x2=x3=0
-        q3=1
-        q0=q1=q2=0
-
-
-    info_str = informationMatrix.replace(",", " ")
-
-    if doSwitchable:
-
-        s=' '.join(['VERTEX_SWITCH', str(poseCount + switchCount), str(switchPrior)])
-        f.write(s+'\n')
-
-        s=' '.join(['EDGE_SWITCH_PRIOR',str(poseCount + switchCount), str(switchPrior), str(switchInfo)])
-        f.write(s+'\n')
-
-        n=[v1, v2, poseCount + switchCount, x1, x2, x3]
-        if mode == 3:
-            n.extend([q0, q1, q2, q3])
-            
-        s = ' '.join([edgeStr+'_SWITCHABLE'] + [str(x) for x in n]) + " " + info_str
-        f.write(s+'\n')
-        
-    elif doMaxMix: 
-        n=[v1, v2, maxmixScale, x1, x2, x3]
-        if mode == 3:
-            n.extend([q0, q1, q2, q3])
-            
-        s = ' '.join([edgeStr+'_MAXMIX'] + [str(x) for x in n]) + " " + info_str
-        f.write(s+'\n')
-    elif doMaxMixAgarwal:
-        n= v1, v2, x1, x2, x3
-
-        # edge component 1
-        edge1 = ' '.join([edgeStr, "1"] + [str(x) for x in n]) + " " + info_str
-    
-        # edge component 2
-        w = float(maxmixScale)
-        weighted_info_str = [str(float(x)*w) for x in info_str.split()]        
-        edge2 = ' '.join([edgeStr, str(maxmixWeight)] + [str(x) for x in n] + weighted_info_str)
-
-        # put it together
-        s =  ' '.join([edgeStr+'_MIXTURE', str(v1), str(v2), "2"]) + " " +  edge1 + " " + edge2
-        f.write(s+'\n')
-
-    else:
-        n=[v1, v2, x1, x2, x3]
-        if mode == 3:
-            n.extend([q0, q1, q2, q3])                    
-            s = ' '.join([edgeStr+":QUAT"] + [str(x) for x in n]) + " " + info_str
-        else:
-            s = ' '.join([edgeStr] + [str(x) for x in n]) + " " + info_str
-        f.write(s+'\n')
-
-
-def write_group_edges(f, outliers, groupSize, lc_edges, poseCount, switchCount, switchPrior, switchInfo, edgeStr, maxmixScale, maxmixWeight, doLocal, doLinkdown, doSwitchable, doMaxMix, doMaxMixAgarwal, perfectMatch, mode, informationMatrix):
-
-    loop_counter = 0
-    while loop_counter < outliers:
-        random_group_size = random.randint(1, groupSize)
-        #print("random group size:", random_group_size)
-
-        if random_group_size == 1:
-
-            v1, v2 = generate_one_edge(poseCount, lc_edges, doLocal, doLinkdown)
-
-            compute_and_write_one_edge(v1, v2, f, mode, edgeStr, perfectMatch, poseCount, switchCount, switchPrior, switchInfo, maxmixScale, maxmixWeight, informationMatrix, doSwitchable, doMaxMix, doMaxMixAgarwal)
-
-            if doSwitchable:
-                switchCount = switchCount + 1
-        
-            lc_edges.append([v1, v2]) # append newly generated edge to the dataset, to make sure following iterations doesn't generate redundant edges 
-        
-        else: 
-            
-            # this two are the means of two uniform distribution of grouped outliers
-            v1, v2 = generate_one_edge(poseCount, lc_edges, doLocal, doLinkdown)
-
-            counter = 0
-            while counter < random_group_size:      
-                
-                v3 = 1
-                v4 = 1
-                while v3 == v4 or ((v3 == v1) and (v4 == v2)) or [v3, v4] in lc_edges:
-                    v3 = random.randint(v1 - groupSize/2, v1 + groupSize/2)
-                    v4 = random.randint(v2 - groupSize/2, v2 + groupSize/2)
-
-
-                    if v3>v4:
-                        tmp=v3
-                        v3=v4
-                        v4=tmp                       
-                    if v4==v3+1:
-                        v4=v3+2
-
-                    if v3 < 0: #in case negative int value is generated for v3, move both v3 and v4 
-                        v4 = v4-v3+1
-                        v3 = 1
-
-                    if doLinkdown:
-                        tmp=v3
-                        v3=v4
-                        v4=tmp 
-
-
-                compute_and_write_one_edge(v3, v4, f, mode, edgeStr, perfectMatch, poseCount, switchCount, switchPrior, switchInfo, maxmixScale, maxmixWeight, informationMatrix, doSwitchable, doMaxMix, doMaxMixAgarwal)
-
-                if doSwitchable:
-                    switchCount = switchCount + 1
-        
-                lc_edges.append([v3, v4]) # append newly generated edge to the dataset, to make sure following iterations doesn't generate redundant edges 
-                counter += 1
-
-        loop_counter += random_group_size          
-
-
-def write_random_edges(f, outliers, lc_edges, poseCount, switchCount, switchPrior, switchInfo, edgeStr, maxmixScale, maxmixWeight, doLocal, doLinkdown, doSwitchable, doMaxMix, doMaxMixAgarwal, perfectMatch, mode, informationMatrix):
-
-
-    for i in range(outliers):        
-
-        v1, v2 = generate_one_edge(poseCount, lc_edges, doLocal, doLinkdown)
-
-        compute_and_write_one_edge(v1, v2, f, mode, edgeStr, perfectMatch, poseCount, switchCount, switchPrior, switchInfo, maxmixScale, maxmixWeight, informationMatrix, doSwitchable, doMaxMix, doMaxMixAgarwal)
-
-        if doSwitchable:
-            switchCount = switchCount + 1
-    
-        lc_edges.append([v1, v2]) # append newly generated edge to the dataset, to make sure following iterations doesn't generate redundant edges 
 
 
 
 # ==================================================================
-def writeDataset(filename, vertices, edges, mode, outliers, switchPrior, switchSigma, maxmixWeight, maxmixScale, groupSize, doLocal, informationMatrix, doSwitchable, doLinkdown, doMaxMix, doMaxMixAgarwal, perfectMatch):
+def writeDataset(filename, vertices, edges, mode, outliers, switchPrior, switchSigma, maxmixWeight, maxmixScale, groupSize, doLocal, informationMatrix, doSwitchable, doDescending, doLinkdown, doMaxMix, doMaxMixAgarwal, perfectMatch):
 
     
     switchInfo=1.0/switchSigma**2
@@ -436,19 +258,131 @@ def writeDataset(filename, vertices, edges, mode, outliers, switchPrior, switchS
       
         f.write(oldStr)
 
-
     lc_edges_information_array = np.array(lc_edges_information)
     information = np.mean(lc_edges_information_array, axis=0)
     information_str = ["%.2f" % x for x in information]
     informationMatrix =' '.join(information_str)
     print(informationMatrix)
 
-    if groupSize == 1:
-        write_random_edges(f, outliers, lc_edges, poseCount, switchCount, switchPrior, switchInfo, edgeStr, maxmixScale, maxmixWeight, doLocal, doLinkdown, doSwitchable, doMaxMix, doMaxMixAgarwal, perfectMatch, mode, informationMatrix)
-    else:
-        write_group_edges(f, outliers, groupSize, lc_edges, poseCount, switchCount, switchPrior, switchInfo, edgeStr, maxmixScale, maxmixWeight, doLocal, doLinkdown, doSwitchable, doMaxMix, doMaxMixAgarwal, perfectMatch, mode, informationMatrix)
-    
-    f.close()
+
+    # now create the desired number of additional outlier edges
+    for i in range(outliers):        
+
+        # determine random indices for the two vertices that are connected by an outlier edge
+        v1=1    # don't use pose 0 @fwu
+        v2=1    # don't use pose 0
+        while v1==v2 or [v1, v2] in lc_edges: # 2nd condition makes sure that generated edge aren't already in the dataset @fwu
+            v1=random.randint(1,poseCount-1-groupSize)# don't use pose 0
+            if doLocal<1:
+              v2=random.randint(1,poseCount-1-groupSize)
+            else: 
+              v2=random.randint(v1,min(poseCount-1-groupSize, v1+20)) 
+
+            if v1>v2:
+              tmp=v1
+              v1=v2
+              v2=tmp                       
+            if v2==v1+1:
+              v2=v1+2
+
+            if doLinkdown:
+              tmp=v1
+              v1=v2
+              v2=tmp 
+
+        
+        # determine coordinates of the loop closure constraint
+        if mode == 2:
+            x1=random.gauss(0,3)
+            x2=random.gauss(0,3)
+            x3=random.gauss(0,10*pi/180.0)
+
+        if mode == 3:
+            x1=random.gauss(0,3)
+            x2=random.gauss(0,3)
+            x3=random.gauss(0,3)
+            
+            
+            sigma = 10.0*pi/180.0
+            roll = random.gauss(0,sigma)
+            pitch = random.gauss(0,sigma)
+            yaw = random.gauss(0,sigma)            
+            (q3, q0, q1, q2) = euler_to_quat(yaw, pitch, roll)
+
+        if perfectMatch:
+          x1=x2=x3=0
+          q3=1
+          q0=q1=q2=0
+
+        
+        j = 0
+        while j < groupSize:
+
+            if [v1, v2] not in lc_edges:
+
+                j += 1
+
+
+                info_str = informationMatrix.replace(",", " ")
+
+            
+                # build the string for the new edge and write it        
+                if doSwitchable:
+
+                    s=' '.join(['VERTEX_SWITCH', str(poseCount + switchCount), str(switchPrior)])
+                    f.write(s+'\n')
+
+                    s=' '.join(['EDGE_SWITCH_PRIOR',str(poseCount + switchCount), str(switchPrior), str(switchInfo)])
+                    f.write(s+'\n')
+
+                    n=[v1, v2, poseCount + switchCount, x1, x2, x3]
+                    if mode == 3:
+                        n.extend([q0, q1, q2, q3])
+                        
+                    s = ' '.join([edgeStr+'_SWITCHABLE'] + [str(x) for x in n]) + " " + info_str
+                    f.write(s+'\n')
+                    switchCount = switchCount + 1
+                elif doMaxMix: 
+                    n=[v1, v2, maxmixScale, x1, x2, x3]
+                    if mode == 3:
+                        n.extend([q0, q1, q2, q3])
+                        
+                    s = ' '.join([edgeStr+'_MAXMIX'] + [str(x) for x in n]) + " " + info_str
+                    f.write(s+'\n')
+                elif doMaxMixAgarwal:
+                    n= v1, v2, x1, x2, x3
+
+                    # edge component 1
+                    edge1 = ' '.join([edgeStr, "1"] + [str(x) for x in n]) + " " + info_str
+                   
+                    # edge component 2
+                    w = float(maxmixScale)
+                    weighted_info_str = [str(float(x)*w) for x in info_str.split()]        
+                    edge2 = ' '.join([edgeStr, str(maxmixWeight)] + [str(x) for x in n] + weighted_info_str)
+
+                    # put it together
+                    s =  ' '.join([edgeStr+'_MIXTURE', str(v1), str(v2), "2"]) + " " +  edge1 + " " + edge2
+                    f.write(s+'\n')
+
+                else:
+                    n=[v1, v2, x1, x2, x3]
+                    if mode == 3:
+                        n.extend([q0, q1, q2, q3])                    
+                        s = ' '.join([edgeStr+":QUAT"] + [str(x) for x in n]) + " " + info_str
+                    else:
+                        s = ' '.join([edgeStr] + [str(x) for x in n]) + " " + info_str
+                    f.write(s+'\n')
+
+            
+                lc_edges.append([v1, v2]) # append newly generated edge to the dataset, to make sure following iterations doesn't generate redundant edges 
+
+            v1=v1+1
+
+            if doDescending:
+                v2=v2-1 # descending                
+            else:
+                 v2=v2+1 # ascending  
+
 
     return True
 
@@ -481,6 +415,7 @@ if __name__ == "__main__":
     parser.add_option("-p", "--perfectMatch", help = "Loop closures match perfectly, i.e. the transformation between both poses is (0,0,0).", action="store_true", default=False)
 
     # options added by @fwu
+    parser.add_option("--descending", help = "For grouped link: vertex_to in descending order.", action="store_true", default=False)
     parser.add_option("--linkdown", help = "For all link: vertex_from > vertex_to.", action="store_true", default=False)
     
     
@@ -510,6 +445,7 @@ if __name__ == "__main__":
                      options.local,
                      options.information,
                      options.switchable,
+                     options.descending,
                      options.linkdown,
                      options.maxmix,                     
                      options.maxmixAgarwal,

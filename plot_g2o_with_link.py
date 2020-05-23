@@ -28,8 +28,7 @@ def plot_trajectory( file_name , options, examine_list):
         edges = df.loc[df[0] == "EDGE_SE3:QUAT"]
         
     
-    print('Number of poses: ', vertex.shape[0])
-    print('Number of edges: ', edges.shape[0])
+    
     od_edges = edges.loc[(edges[2] - edges[1]) == 1]
     lc_edges = edges.loc[(edges[2] - edges[1]) != 1]
     
@@ -74,7 +73,7 @@ def plot_trajectory( file_name , options, examine_list):
     if options == "3d":
         trajectory_z = np.array(vertex[4])
     
-    fig = plt.figure()
+    fig, ax = plt.subplots()
     if options == "2d":
         plt.plot(trajectory_x, trajectory_y, 'b')
     elif options == "3d":
@@ -102,7 +101,12 @@ def plot_trajectory( file_name , options, examine_list):
     
     
     filename = file_name.split(".")
-    plt.savefig(filename[0])
+
+    default_size = fig.get_size_inches()
+    fig.set_size_inches( (default_size[0]*0.5, default_size[1]*0.8) )
+    ax.axis('off')#disable border
+    plt.axis((-50,90,-90,100))
+    plt.savefig(filename[0],  bbox_inches='tight')
     plt.show()
     # In[]:
     fig, ax = plt.subplots()
