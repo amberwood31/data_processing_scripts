@@ -5,30 +5,36 @@ import os
 
 dataset = ['csail', 'manhattan', 'intel']
 inliers_quantity = [127, 1952, 256]
-inliers_percentages = [0.5]
-outliers_quantity = [127, 1952, 256]
+inliers_percentages = [0.6, 0.7, 0.8, 0.9] #0.5, 
 group_size = 8
-outliers_group_quantity = outliers_quantity #[int(x/group_size) for x in outliers_quantity]
-print(outliers_group_quantity)
 sample_size = 10
 
 
+outliers_quantity = []
+for i in range(0, len(dataset)):
+    outliers_quantity.append([])
+    for inlier_percentage in inliers_percentages:
+        inlier_n = inliers_quantity[i]
+        outliers_quantity[-1].append(round(inlier_n / inlier_percentage - inlier_n))
+#print(outliers_quantity)
 
 #os.chdir('/home/amber/stew/pose_dataset/')
 
 for i in range(0,len(dataset)):
-    os.system('./create_new_dataset_folder.sh '+ dataset[i]+ ' group'+str(outliers_quantity[i]))
-    print('adding new dataset folder: '+dataset[i]+'_'+'group'+str(outliers_quantity[i]))
+    for j in range(0, len(inliers_percentages)):
+        os.system('./create_new_dataset_folder.sh '+ dataset[i]+ ' group'+str(outliers_quantity[i][j]))
+        print('adding new dataset folder: '+dataset[i]+'_'+'group'+str(outliers_quantity[i][j]))
 
 for i in range(0, len(dataset)):
-    dataset_name = dataset[i]
-    configuration_name = 'group'+str(outliers_quantity[i])
-    os.chdir(dataset_name + '_'+ configuration_name)
-    os.system('python uniquify.py ' + dataset_name + '.g2o' + ' ' + dataset_name + '.g2o_unique.g2o')
-    if dataset_name == 'mit':
-        os.system('./generate_dataset.sh ' + dataset_name + '.g2o_unique.g2o ' + str(sample_size) + ' ' + str(outliers_group_quantity[i]) + ' ' + str(0) + ' ' + str(group_size))
-    else:
-        os.system('./generate_dataset.sh ' + dataset_name + '.g2o_unique.g2o ' + str(sample_size) + ' ' + str(outliers_group_quantity[i]) + ' ' + str(group_size))
-    os.chdir('..')
+    for j in range(0, len(inliers_percentages)):
+        dataset_name = dataset[i]
+        configuration_name = 'group'+str(outliers_quantity[i][j])
+        os.chdir(dataset_name + '_'+ configuration_name)
+        os.system('python uniquify.py ' + dataset_name + '.g2o' + ' ' + dataset_name + '.g2o_unique.g2o')
+        if dataset_name == 'mit':
+            os.system('./generate_dataset.sh ' + dataset_name + '.g2o_unique.g2o ' + str(sample_size) + ' ' + str(outliers_quantity[i][j]) + ' ' + str(0) + ' ' + str(group_size))
+        else:
+            os.system('./generate_dataset.sh ' + dataset_name + '.g2o_unique.g2o ' + str(sample_size) + ' ' + str(outliers_quantity[i][j]) + ' ' + str(group_size))
+        os.chdir('..')
 
 
